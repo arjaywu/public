@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>避坑侠 - 交互原型 V2.0</title>
+<style>
+/* ========== 设计令牌 ========== */
+:root {
+  --primary: #2B2D42;
+  --accent: #4A6CF7;
+  --accent-light: #EEF2FF;
+  --accent-dark: #3A5BD9;
+  --text: #1A1A2E;
+  --text-secondary: #8E8EA0;
+  --divider: #E8E8EF;
+  --bg: #FFFFFF;
+  --bg-page: #F4F4F8;
+  --bg-card: #FFFFFF;
+  --placeholder: #F0F0F5;
+  --placeholder-border: #D0D0DD;
+  --danger: #EF4444;
+  --danger-light: #FEF2F2;
+  --warning: #F59E0B;
+  --warning-light: #FFFBEB;
+  --safe: #10B981;
+  --safe-light: #ECFDF5;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, 'PingFang SC', 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========== 顶部标题 ========== */
+.proto-header {
+  color: white;
+  text-align: center;
+  margin-bottom: 24px;
+}
+.proto-header h1 { font-size: 24px; font-weight: 700; letter-spacing: 1px; }
+.proto-header p { font-size: 14px; opacity: 0.85; margin-top: 8px; }
+.proto-header .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px; }
+
+/* ========== 手机模拟器容器 ========== */
+.phone-shell {
+  width: 375px;
+  height: 740px;
+  background: #000;
+  border-radius: 40px;
+  padding: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  position: relative;
+}
+.phone-notch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 24px;
+  background: #000;
+  border-radius: 0 0 16px 16px;
+  z-index: 100;
+}
+
+/* ========== 手机屏幕 ========== */
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 32px;
+  overflow: hidden;
+  background: var(--bg);
+  position: relative;
+}
+
+/* ========== 页面容器（堆叠） ========== */
+.page {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  opacity: 0;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.page.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  z-index: 10;
+}
+.page.exit-left {
+  opacity: 0.5;
+  transform: translateX(-30%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ===== Tab 切换专用动画：纯左右滑动（平级切换） =====
+   方向由 JS 控制：旧页与新页同步左移或同步右移，整体感像把整版往一个方向推。
+   优先级要高于 .page.active */
+
+/* === 旧页面：先 prep 卡在原位（避免从 translateX(100%) 反弹） === */
+.page.tab-leaving-prep {
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+  pointer-events: none !important;
+  z-index: 9 !important;
+  transition: none !important;
+}
+/* 旧页向左滑走（新 Tab 在右侧时） */
+.page.tab-leaving-left {
+  opacity: 1 !important;
+  transform: translateX(-100%) !important;
+  pointer-events: none !important;
+  z-index: 9 !important;
+  transition: transform 0.32s cubic-bezier(0.33, 1, 0.68, 1) !important;
+}
+/* 旧页向右滑走（新 Tab 在左侧时） */
+.page.tab-leaving-right {
+  opacity: 1 !important;
+  transform: translateX(100%) !important;
+  pointer-events: none !important;
+  z-index: 9 !important;
+  transition: transform 0.32s cubic-bezier(0.33, 1, 0.68, 1) !important;
+}
+
+/* 新页起始位：屏幕外右侧 */
+.page.tab-entering-right {
+  opacity: 1 !important;
+  transform: translateX(100%) !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+  transition: none !important;
+}
+/* 新页起始位：屏幕外左侧 */
+.page.tab-entering-left {
+  opacity: 1 !important;
+  transform: translateX(-100%) !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+  transition: none !important;
+}
+/* 新页归位 */
+.page.tab-entered {
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+  pointer-events: auto !important;
+  z-index: 10 !important;
+  transition: transform 0.32s cubic-bezier(0.33, 1, 0.68, 1) !important;
+}
+
+/* ========== 状态栏 ========== */
+.status-bar {
+  height: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 24px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+}
+.status-icons { display: flex; gap: 4px; align-items: center; }
+.status-icons svg { width: 16px; height: 16px; }
+
+/* ========== 导航栏 ========== */
+.nav-bar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--bg);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+}
+.nav-back {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 50%; transition: background var(--transition);
+}
+.nav-back:hover { background: var(--placeholder); }
+.nav-back:active { background: var(--divider); }
+.nav-back svg { width: 20px; height: 20px; }
+.nav-title { flex: 1; text-align: center; font-size: 16px; font-weight: 600; color: var(--text); }
+.nav-action { min-width: 32px; font-size: 14px; color: var(--accent); cursor: pointer; }
+
+/* ========== 内容区（可滚动） ========== */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.page-content { scrollbar-width: none; -ms-overflow-style: none; }
+.page-content::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ========== Tab 底部导航 ========== */
+.tab-bar {
+  height: 64px;
+  display: flex;
+  border-top: 1px solid var(--divider);
+  background: var(--bg);
+  flex-shrink: 0;
+  padding-bottom: 8px;
+}
+.tab-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; cursor: pointer; transition: all var(--transition); position: relative;
+}
+.tab-item svg { width: 22px; height: 22px; stroke: var(--text-secondary); fill: none; stroke-width: 1.8; transition: stroke 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tab-item span { font-size: 10px; color: var(--text-secondary); transition: color 0.25s ease, font-weight 0.25s; font-weight: 500; }
+.tab-item.active svg { stroke: var(--accent); transform: translateY(-2px) scale(1.08); }
+.tab-item.active span { color: var(--accent); font-weight: 600; }
+.tab-item.active::before {
+  content: '';
+  position: absolute; top: -1px; left: 50%;
+  width: 24px; height: 3px; background: var(--accent); border-radius: 0 0 3px 3px;
+  transform: translateX(-50%) scaleX(0);
+  animation: tabIndicator 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes tabIndicator {
+  from { transform: translateX(-50%) scaleX(0); opacity: 0; }
+  to   { transform: translateX(-50%) scaleX(1); opacity: 1; }
+}
+.tab-item:active { transform: scale(0.92); }
+
+/* ========== 输入框 ========== */
+.input-field {
+  height: 48px; border: 1.5px solid var(--divider); border-radius: var(--radius-sm);
+  padding: 0 16px; display: flex; align-items: center; background: var(--bg);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.input-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.input-field.error { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-light); }
+.input-field input {
+  border: none; outline: none; flex: 1; font-size: 16px; color: var(--text);
+  background: transparent; font-family: inherit;
+}
+.input-field input::placeholder { color: var(--text-secondary); }
+
+/* ========== 按钮 ========== */
+.btn {
+  height: 52px; border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 600; cursor: pointer;
+  transition: all var(--transition); border: none; font-family: inherit;
+  position: relative; overflow: hidden;
+  letter-spacing: 1px;
+  width: 100%;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(43,45,66,0.25); }
+.btn-primary:hover { background: #3D3F5C; box-shadow: 0 6px 16px rgba(43,45,66,0.3); }
+.btn-primary:active { background: #1F2133; box-shadow: 0 2px 6px rgba(43,45,66,0.2); }
+.btn-primary.disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-accent { background: var(--accent); color: white; box-shadow: 0 4px 12px rgba(74,108,247,0.3); }
+.btn-accent:hover { background: var(--accent-dark); box-shadow: 0 6px 16px rgba(74,108,247,0.4); }
+.btn-accent:active { background: #2E4ABF; box-shadow: 0 2px 6px rgba(74,108,247,0.25); }
+.btn-ghost { background: var(--bg); color: var(--text); border: 1.5px solid var(--divider); }
+.btn-ghost:hover { background: var(--placeholder); }
+.btn-ghost:active { background: var(--divider); }
+.btn-sm { height: 36px; font-size: 13px; font-weight: 500; letter-spacing: 0; width: auto; }
+
+/* 按钮涟漪效果 */
+.ripple {
+  position: absolute; border-radius: 50%; background: rgba(255,255,255,0.3);
+  transform: scale(0); animation: ripple-anim 0.6s ease-out; pointer-events: none;
+}
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+/* ========== 标签 ========== */
+.tag { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.tag-danger { color: var(--danger); background: var(--danger-light); }
+.tag-warning { color: #B45309; background: var(--warning-light); }
+.tag-safe { color: #047857; background: var(--safe-light); }
+.tag-accent { color: var(--accent); background: var(--accent-light); cursor: pointer; }
+.tag-accent:active { opacity: 0.7; }
+
+/* ========== 卡片 ========== */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition), box-shadow var(--transition);
+  cursor: pointer;
+}
+.card:active { transform: scale(0.98); box-shadow: none; }
+
+/* ========== 消息气泡 ========== */
+.chat-area { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.msg { display: flex; gap: 8px; max-width: 85%; animation: msg-in 0.3s ease-out; }
+.msg-ai { align-self: flex-start; }
+.msg-user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar {
+  width: 32px; height: 32px; border-radius: var(--radius-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.msg-avatar-ai { background: var(--accent-light); }
+.msg-avatar-user { background: var(--accent); color: white; font-size: 12px; font-weight: 600; }
+.msg-bubble {
+  padding: 10px 14px; font-size: 14px; line-height: 1.6; word-break: break-word;
+  white-space: pre-wrap;
+}
+.msg-ai .msg-bubble {
+  background: var(--bg-page); color: var(--text);
+  border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
+}
+.msg-user .msg-bubble {
+  background: var(--accent); color: white;
+  border-radius: var(--radius-md) 4px var(--radius-md) var(--radius-md);
+}
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* AI 正在输入 */
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+.typing-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary);
+  animation: typing 1.4s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing { 0%,60%,100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+/* ========== 输入栏 ========== */
+.chat-input-bar {
+  display: flex; align-items: center; padding: 8px 16px; gap: 8px;
+  border-top: 1px solid var(--divider); background: var(--bg); flex-shrink: 0;
+}
+.chat-input {
+  flex: 1; height: 36px; border: 1.5px solid var(--divider); border-radius: 18px;
+  padding: 0 14px; font-size: 14px; outline: none; background: var(--bg-page);
+  transition: border-color var(--transition);
+  font-family: inherit;
+}
+.chat-input:focus { border-color: var(--accent); }
+.send-btn {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all var(--transition); border: none; flex-shrink: 0;
+}
+.send-btn:hover { background: var(--accent-dark); }
+.send-btn:active { transform: scale(0.9); }
+.send-btn svg { width: 16px; height: 16px; }
+
+/* ========== 风险条目 ========== */
+.risk-item {
+  display: flex; gap: 8px; padding: 12px; background: var(--bg-card);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
+  transition: transform var(--transition); cursor: pointer; margin-bottom: 8px;
+}
+.risk-item:active { transform: scale(0.98); }
+.risk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+
+/* ========== 列表条目 ========== */
+.list-entry {
+  display: flex; align-items: center; padding: 12px 0;
+  border-bottom: 1px solid var(--divider); cursor: pointer;
+  transition: background var(--transition);
+}
+.list-entry:active { background: var(--placeholder); }
+.list-entry:last-child { border-bottom: none; }
+.list-icon-box {
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  background: var(--accent-light); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.list-entry-body { flex: 1; margin-left: 12px; }
+.list-entry-title { font-size: 14px; color: var(--text); font-weight: 500; }
+.list-entry-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.list-arrow { color: var(--text-secondary); font-size: 14px; margin-left: 8px; }
+
+/* ========== 评分卡 ========== */
+.score-card {
+  background: linear-gradient(135deg, var(--primary) 0%, #3D3F5C 100%);
+  color: white; border-radius: var(--radius-md); padding: 20px; text-align: center;
+}
+.score-number { font-size: 48px; font-weight: 800; line-height: 1; }
+.score-label { font-size: 14px; opacity: 0.8; margin-top: 4px; }
+
+/* ========== 弹窗 / 半屏 ========== */
+.overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 50;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.overlay.visible { opacity: 1; pointer-events: auto; }
+
+.half-sheet {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--bg); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  z-index: 60; transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 70%;
+  overflow-y: auto;
+}
+.half-sheet.visible { transform: translateY(0); }
+.sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px; background: var(--divider);
+  margin: 8px auto 0;
+}
+.sheet-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px 8px; font-size: 16px; font-weight: 600;
+}
+.sheet-close {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--placeholder);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; color: var(--text-secondary);
+}
+.sheet-body { padding: 8px 20px 24px; }
+
+/* ========== 自定义确认对话框 ========== */
+.confirm-dialog {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: var(--bg); border-radius: var(--radius-lg);
+  width: 280px; padding: 24px 20px 0;
+  z-index: 70; opacity: 0; pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+}
+.confirm-dialog.visible {
+  opacity: 1; pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+.confirm-title {
+  font-size: 17px; font-weight: 600; color: var(--text); text-align: center;
+  margin-bottom: 8px;
+}
+.confirm-message {
+  font-size: 14px; color: var(--text-secondary); text-align: center; line-height: 1.5;
+  margin-bottom: 20px;
+}
+.confirm-actions {
+  display: flex; margin: 0 -20px; border-top: 1px solid var(--divider);
+}
+.confirm-btn {
+  flex: 1; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer; transition: background var(--transition);
+  font-family: inherit; background: none; border: none;
+}
+.confirm-btn:hover { background: var(--placeholder); }
+.confirm-btn.cancel { color: var(--text-secondary); border-right: 1px solid var(--divider); border-radius: 0 0 0 var(--radius-lg); }
+.confirm-btn.confirm { color: var(--accent); font-weight: 600; border-radius: 0 0 var(--radius-lg) 0; }
+.confirm-btn.danger { color: var(--danger); }
+
+/* ========== Toast ========== */
+.toast {
+  position: absolute; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+  background: rgba(0,0,0,0.8); color: white; padding: 8px 16px;
+  border-radius: 20px; font-size: 13px; z-index: 100;
+  opacity: 0; transition: all 0.3s ease; pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ========== 地图占位 ========== */
+.map-placeholder {
+  height: 200px; background: var(--bg-page);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.map-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--divider) 1px, transparent 1px),
+    linear-gradient(90deg, var(--divider) 1px, transparent 1px);
+  background-size: 40px 40px; opacity: 0.5;
+}
+.map-pin {
+  position: absolute; width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer;
+  transition: transform var(--transition);
+  animation: pin-bounce 0.5s ease-out;
+}
+.map-pin:active { transform: scale(1.3); }
+@keyframes pin-bounce {
+  0% { opacity: 0; transform: translateY(-20px); }
+  60% { transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 功能入口网格 ========== */
+.feature-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+}
+.feature-item {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer; padding: 8px 0;
+  transition: transform var(--transition);
+}
+.feature-item:active { transform: scale(0.9); }
+.feature-icon {
+  width: 48px; height: 48px; border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; transition: transform var(--transition);
+}
+.feature-item:hover .feature-icon { transform: scale(1.05); }
+.feature-label { font-size: 12px; color: var(--text); font-weight: 500; }
+
+/* ========== 时间线 ========== */
+.timeline { padding-left: 20px; border-left: 2px solid var(--divider); }
+.timeline-item { padding: 8px 0 16px 16px; position: relative; }
+.timeline-dot {
+  position: absolute; left: -25px; top: 12px;
+  width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;
+  box-shadow: 0 0 0 2px var(--divider);
+}
+
+/* ========== 上传区 ========== */
+.upload-area {
+  border: 2px dashed var(--divider);
+  border-radius: var(--radius-md);
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--bg-page);
+}
+.upload-area:hover, .upload-area:active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ========== 间隔 ========== */
+.spacer-8 { height: 8px; }
+.spacer-16 { height: 16px; }
+.spacer-24 { height: 24px; }
+.spacer-32 { height: 32px; }
+.spacer-48 { height: 48px; }
+
+/* ========== 加载动画 ========== */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 32px; height: 32px; border: 3px solid var(--divider);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin: 0 auto;
+}
+
+/* ========== 底部标注栏 ========== */
+.proto-footer {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+  margin-top: 24px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- 手机模拟器 -->
+<div class="phone-shell">
+  <div class="phone-notch"></div>
+  <div class="phone-screen" id="screen">
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 遮罩 -->
+    <div class="overlay" id="overlay" onclick="dismissOverlay()"></div>
+
+    <!-- 半屏弹窗 -->
+    <div class="half-sheet" id="halfSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <span id="sheetTitle">标题</span>
+        <div class="sheet-close" onclick="closeSheet()">✕</div>
+      </div>
+      <div class="sheet-body" id="sheetBody"></div>
+    </div>
+
+    <!-- 自定义确认对话框 -->
+    <div class="confirm-dialog" id="confirmDialog">
+      <div class="confirm-title" id="confirmTitle">提示</div>
+      <div class="confirm-message" id="confirmMessage">确定执行此操作吗？</div>
+      <div class="confirm-actions">
+        <button class="confirm-btn cancel" onclick="hideConfirm(false)">取消</button>
+        <button class="confirm-btn confirm" id="confirmOkBtn" onclick="hideConfirm(true)">确定</button>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 01 - 登录页 -->
+    <!-- ================================================== -->
+    <div class="page active" id="page-login">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="page-content" style="padding: 48px 24px 24px;">
+        <div style="text-align:center;">
+          <div style="width:64px;height:64px;border-radius:16px;background:var(--accent);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:28px;">🛡️</div>
+          <div style="font-size:24px;font-weight:700;color:var(--text);margin-top:16px;">避坑侠</div>
+          <div style="font-size:14px;color:var(--text-secondary);margin-top:4px;">AI 租房避坑助手</div>
+        </div>
+        <div class="spacer-48"></div>
+        <div>
+          <div style="font-size:14px;color:var(--text-secondary);margin-bottom:8px;">手机号 <span style="color:var(--danger)">*</span></div>
+          <div class="input-field" id="phoneInput">
+            <input type="tel" placeholder="请输入手机号" maxlength="11" id="phoneValue" oninput="onPhoneInput()">
+          </div>
+          <div style="font-size:12px;color:var(--danger);margin-top:4px;display:none;" id="phoneError">请输入11位手机号</div>
+        </div>
+        <div class="spacer-16"></div>
+        <div>
+          <div style="font-size:14px;color:var(--text-secondary);margin-bottom:8px;">验证码 <span style="color:var(--danger)">*</span></div>
+          <div style="display:flex;gap:8px;">
+            <div class="input-field" style="flex:1;" id="codeInput">
+              <input type="text" placeholder="6位数字" maxlength="6" id="codeValue">
+            </div>
+            <button class="btn btn-ghost btn-sm" style="width:100px;" id="codeBtn" onclick="sendCode()">获取验证码</button>
+          </div>
+        </div>
+        <div class="spacer-32"></div>
+        <button class="btn btn-accent" id="loginBtn" onclick="doLogin()">登录</button>
+        <div class="spacer-8"></div>
+        <button class="btn btn-ghost" onclick="replaceTo('page-home')">游客访问</button>
+        <div class="spacer-24"></div>
+        <div style="text-align:center;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+          登录即同意 <span style="color:var(--accent);cursor:pointer;" onclick="showSheet('用户协议','本应用用户协议内容...（正式版待补充）')">《用户协议》</span> 和 <span style="color:var(--accent);cursor:pointer;" onclick="showSheet('隐私政策','本应用隐私政策内容...（正式版待补充）')">《隐私政策》</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 02 - 首页 -->
+    <!-- ================================================== -->
+    <div class="page" id="page-home">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="page-content">
+        <div style="padding:16px 16px 8px;">
+          <div style="font-size:14px;color:var(--text-secondary);">下午好 👋</div>
+          <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">避坑小达人</div>
+        </div>
+        <div style="padding:0 16px 16px;">
+          <!-- 搜索栏 -->
+          <div class="input-field" style="height:40px;border-radius:20px;margin-top:8px;cursor:pointer;" onclick="showToast('搜索功能：输入小区名/地址查坑位，输入问题AI解答')">
+            <span style="font-size:14px;color:var(--text-secondary);">🔍 搜索小区、地址或问题...</span>
+          </div>
+          <div class="spacer-16"></div>
+          <!-- 4大功能入口 -->
+          <div class="feature-grid">
+            <div class="feature-item" onclick="navigateTo('page-contract')">
+              <div class="feature-icon" style="background:#EEF2FF;">📋</div>
+              <span class="feature-label">合同审查</span>
+            </div>
+            <div class="feature-item" onclick="showSheet('租金查询','输入地址 → 对比周边均价 → 判断是否溢价\n\n功能开发中，敬请期待 🏗️')">
+              <div class="feature-icon" style="background:#FEF3C7;">💰</div>
+              <span class="feature-label">租金查询</span>
+            </div>
+            <div class="feature-item" onclick="navigateTo('page-map')">
+              <div class="feature-icon" style="background:#ECFDF5;">🗺️</div>
+              <span class="feature-label">坑位地图</span>
+            </div>
+            <div class="feature-item" onclick="showSheet('维权记录','维权记录页面开发中...\n\n将包含：维权时间线、调解进度、诉讼指引')">
+              <div class="feature-icon" style="background:#FEF2F2;">⚖️</div>
+              <span class="feature-label">维权记录</span>
+            </div>
+          </div>
+          <div class="spacer-24"></div>
+          <!-- 今日避坑预警 -->
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:16px;font-weight:700;color:var(--text);">今日避坑预警</span>
+          </div>
+          <div class="spacer-8"></div>
+          <div class="card" onclick="navigateTo('page-chat')" style="border-left:4px solid var(--danger);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <span class="tag tag-danger">高频坑</span>
+                <div style="font-size:16px;font-weight:600;color:var(--text);margin-top:8px;">押金不退？别慌！</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">2,847 条纠纷反馈 →</div>
+              </div>
+              <span style="font-size:24px;">🔥</span>
+            </div>
+          </div>
+          <div class="spacer-8"></div>
+          <div class="card" style="border-left:4px solid var(--warning);" onclick="navigateTo('page-chat')">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <span class="tag tag-warning">注意</span>
+                <div style="font-size:16px;font-weight:600;color:var(--text);margin-top:8px;">租房合同5大暗坑</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">1,203 条纠纷反馈 →</div>
+              </div>
+              <span style="font-size:24px;">⚠️</span>
+            </div>
+          </div>
+          <div class="spacer-24"></div>
+          <!-- 我的记录 -->
+          <div style="font-size:16px;font-weight:700;color:var(--text);">我的记录</div>
+          <div class="spacer-8"></div>
+          <div class="list-entry" onclick="navigateTo('page-contract')">
+            <div class="list-icon-box">📋</div>
+            <div class="list-entry-body">
+              <div class="list-entry-title">朝阳区某公寓合同</div>
+              <div class="list-entry-sub">3天前 · 3处风险</div>
+            </div>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('租金对比','望京SOHO 租金对比详情\n\n周边均价：¥6,200/月\n你的租金：¥7,500/月\n溢价：21%（高于均价）\n\n💡 建议：可尝试议价或更换房源')">
+            <div class="list-icon-box" style="background:#FEF3C7;">💰</div>
+            <div class="list-entry-body">
+              <div class="list-entry-title">望京SOHO 租金对比</div>
+              <div class="list-entry-sub">5天前 · 均价 ¥6,200</div>
+            </div>
+            <span class="list-arrow">›</span>
+          </div>
+        </div>
+      </div>
+      <!-- Tab导航 -->
+      <div class="tab-bar">
+        <div class="tab-item active" data-tab="home" onclick="switchTab('page-home',this)">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>首页</span>
+        </div>
+        <div class="tab-item" data-tab="chat" onclick="switchTab('page-chat',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>AI咨询</span>
+        </div>
+        <div class="tab-item" data-tab="map" onclick="switchTab('page-map',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>坑位地图</span>
+        </div>
+        <div class="tab-item" data-tab="profile" onclick="switchTab('page-profile',this)">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>我的</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 03 - AI咨询对话页 -->
+    <!-- ================================================== -->
+    <div class="page" id="page-chat">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="nav-bar">
+        <div class="nav-back" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="nav-title">AI 避坑顾问</div>
+        <span class="tag tag-safe">在线</span>
+      </div>
+      <div class="page-content" style="background:var(--bg-page);">
+        <div class="chat-area" id="chatArea">
+          <!-- AI 欢迎语 -->
+          <div class="msg msg-ai">
+            <div class="msg-avatar msg-avatar-ai">🤖</div>
+            <div class="msg-bubble">你好！我是AI避坑顾问 🛡️ 租房相关的任何问题都可以问我，我会帮你分析风险并提供法律依据。</div>
+          </div>
+          <!-- 用户消息 -->
+          <div class="msg msg-user">
+            <div class="msg-avatar msg-avatar-user">我</div>
+            <div class="msg-bubble">房东说押金要交三个月的，这合理吗？</div>
+          </div>
+          <!-- AI回复 -->
+          <div class="msg msg-ai">
+            <div class="msg-avatar msg-avatar-ai">🤖</div>
+            <div class="msg-bubble"><b>不合理！</b>依据《住房租赁条例》，多数城市押金不得超过1个月租金。建议：<br><br>1️⃣ 出示当地租赁条例<br>2️⃣ 保留沟通证据<br>3️⃣ 拨打12345投诉</div>
+          </div>
+          <!-- 用户消息2 -->
+          <div class="msg msg-user">
+            <div class="msg-avatar msg-avatar-user">我</div>
+            <div class="msg-bubble">合同里说「提前退租押金不退」怎么办？</div>
+          </div>
+          <!-- AI回复2 -->
+          <div class="msg msg-ai">
+            <div class="msg-avatar msg-avatar-ai">🤖</div>
+            <div class="msg-bubble">属于<b>霸王条款</b>，可主张无效！根据《民法典》第497条，格式条款加重对方责任的，该条款无效。我可以帮你生成反驳意见。</div>
+          </div>
+          <!-- 快捷标签 -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:40px;">
+            <span class="tag tag-accent" onclick="showSheet('法律条文','《民法典》第497条：格式条款加重对方责任、限制对方主要权利的，该条款无效。\n\n《民法典》第585条：约定的违约金过分高于造成的损失的，可以请求人民法院予以减少。')">📜 查看法律条文</span>
+            <span class="tag tag-accent" onclick="showSheet('反驳意见','根据《民法典》第497条，该「提前退租押金不退」条款属于加重租客责任的格式条款，应认定为无效。\n\n建议回复房东：\n「根据《民法典》相关规定，该条款属于加重我方责任的格式条款，不具有法律效力。我方要求按实际居住时间结算，退还剩余押金。」')">✍️ 生成反驳意见</span>
+            <span class="tag tag-accent" onclick="showSheet('投诉流程','投诉维权步骤：\n\n1️⃣ 与房东协商（保留证据）\n2️⃣ 向居委会/物业投诉\n3️⃣ 拨打12345市民热线\n4️⃣ 向住建局投诉\n5️⃣ 申请人民调解\n6️⃣ 提起诉讼（小额诉讼程序）\n\n📞 关键电话：\n12345 市民热线\n12315 消费者投诉\n12336 国土资源热线')">📞 投诉流程</span>
+          </div>
+        </div>
+      </div>
+      <!-- 输入栏 -->
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" placeholder="输入你的租房问题..." id="chatInput" onkeydown="if(event.key==='Enter')sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M22 2L11 13" stroke-linecap="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <!-- Tab导航 -->
+      <div class="tab-bar">
+        <div class="tab-item" data-tab="home" onclick="switchTab('page-home',this)">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>首页</span>
+        </div>
+        <div class="tab-item active" data-tab="chat" onclick="switchTab('page-chat',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>AI咨询</span>
+        </div>
+        <div class="tab-item" data-tab="map" onclick="switchTab('page-map',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>坑位地图</span>
+        </div>
+        <div class="tab-item" data-tab="profile" onclick="switchTab('page-profile',this)">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>我的</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 04 - 合同审查页 -->
+    <!-- ================================================== -->
+    <div class="page" id="page-contract">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="nav-bar">
+        <div class="nav-back" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="nav-title">合同审查</div>
+        <div class="nav-action"></div>
+      </div>
+      <div class="page-content">
+        <div style="padding:16px;">
+          <!-- 上传区 -->
+          <div id="uploadArea" class="upload-area" onclick="startAnalysis()">
+            <div style="font-size:36px;">📄</div>
+            <div style="font-size:16px;color:var(--text);margin-top:8px;font-weight:500;">拍照或上传合同</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">支持 PDF / 图片 / 扫描件</div>
+          </div>
+
+          <!-- 加载态 -->
+          <div id="loadingState" style="display:none;text-align:center;padding:48px 0;">
+            <div class="spinner"></div>
+            <div style="font-size:16px;color:var(--text);margin-top:16px;font-weight:500;">合同分析中...</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:8px;">AI 正在逐条识别风险</div>
+          </div>
+
+          <!-- 分析结果 -->
+          <div id="resultArea" style="display:none;">
+            <div class="spacer-16"></div>
+            <!-- 评分卡 -->
+            <div class="score-card">
+              <div class="score-number">62<span style="font-size:16px;font-weight:400;opacity:0.8;">/100</span></div>
+              <div class="score-label">中等风险 · 3处高风险 + 2处中风险</div>
+            </div>
+            <div class="spacer-16"></div>
+            <!-- 风险条目 -->
+            <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">风险条目</div>
+
+            <div class="risk-item" onclick="showSheet('押金条款异常','📋 条款内容：「承租方须缴纳三个月租金作为押金」\n\n⚠️ 风险分析：\n多数城市规定押金不得超过1-2个月租金。3个月押金超出法定标准。\n\n📝 修改建议：\n将押金改为1个月租金，并明确退还条件和时间。')">
+              <div class="risk-dot" style="background:var(--danger);"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:500;">押金条款异常 <span class="tag tag-danger">高风险</span></div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">押金3个月，超法定标准</div>
+              </div>
+              <span class="list-arrow">›</span>
+            </div>
+
+            <div class="risk-item" onclick="showSheet('违约金过高','📋 条款内容：「提前退租须支付2个月租金作为违约金」\n\n⚠️ 风险分析：\n2个月租金的违约金过高，超出合理范围。根据《民法典》第585条，可请求减少。\n\n📝 修改建议：\n违约金改为不超过1个月租金，并明确不可抗力免责条款。')">
+              <div class="risk-dot" style="background:var(--danger);"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:500;">违约金过高 <span class="tag tag-danger">高风险</span></div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">2个月租金，超出合理范围</div>
+              </div>
+              <span class="list-arrow">›</span>
+            </div>
+
+            <div class="risk-item" onclick="showSheet('维修责任全归租客','📋 条款内容：「房屋及设施维修由承租方自行承担」\n\n⚠️ 风险分析：\n霸王条款！自然损耗应由房东承担，租客仅负责使用不当造成的损坏。\n\n📝 修改建议：\n明确「自然损耗由出租方维修，人为损坏由承租方维修」。')">
+              <div class="risk-dot" style="background:var(--danger);"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:500;">维修责任全归租客 <span class="tag tag-danger">高风险</span></div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">霸王条款，自然损耗应由房东承担</div>
+              </div>
+              <span class="list-arrow">›</span>
+            </div>
+
+            <div class="risk-item" onclick="showSheet('缺少退房验收标准','📋 条款内容：合同未约定退房验收标准\n\n⚠️ 风险分析：\n缺少验收标准，退房时房东可能以各种理由扣押金。\n\n📝 修改建议：\n增加条款「退房时按入住时双方确认的房屋状况表验收，正常损耗不扣押金」。')">
+              <div class="risk-dot" style="background:var(--warning);"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:500;">缺少退房验收标准 <span class="tag tag-warning">中风险</span></div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">易引发押金纠纷</div>
+              </div>
+              <span class="list-arrow">›</span>
+            </div>
+
+            <div class="risk-item" onclick="showSheet('涨租条款模糊','📋 条款内容：「租金可根据市场情况调整」\n\n⚠️ 风险分析：\n涨租条款模糊，房东可随意涨租，租客权益无保障。\n\n📝 修改建议：\n增加「租期内租金不变；续租时涨幅不超过5%，且需提前30天书面通知」。')">
+              <div class="risk-dot" style="background:var(--warning);"></div>
+              <div style="flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:500;">涨租条款模糊 <span class="tag tag-warning">中风险</span></div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">未明确涨租幅度上限</div>
+              </div>
+              <span class="list-arrow">›</span>
+            </div>
+
+            <div class="spacer-16"></div>
+            <button class="btn btn-ghost" onclick="resetContractPage()">🔄 重新上传合同</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 05 - 坑位地图页 -->
+    <!-- ================================================== -->
+    <div class="page" id="page-map">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="nav-bar">
+        <div class="nav-back" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="nav-title">坑位地图</div>
+        <div class="nav-action" onclick="showSheet('筛选','按严重程度筛选：\n🔴 严重\n🟡 中等\n🟢 轻微\n\n按距离筛选：\n500m / 1km / 3km / 5km\n\n按类型筛选：\n押金 / 收费 / 维修 / 其他')">筛选</div>
+      </div>
+      <!-- 地图 -->
+      <div class="map-placeholder">
+        <div class="map-grid"></div>
+        <div style="position:absolute;text-align:center;color:var(--text-secondary);z-index:2;">
+          <div style="font-size:16px;">📍</div>
+          <div style="font-size:12px;">朝阳区 · 望京周边</div>
+        </div>
+        <div class="map-pin" style="top:30px;left:60px;" onclick="showSheet('XX公寓','🏠 XX公寓 - 押金不退\n\n🔴 严重程度：严重\n👥 反馈人数：23人\n📍 距离：500m\n\n📝 典型问题：\n租期结束后以各种理由拒绝退还押金，多名租客反映维权困难。\n\n💡 避坑建议：\n1. 签约时明确押金退还条款\n2. 入住/退房时拍照留证\n3. 保留所有缴费凭证')">🔴</div>
+        <div class="map-pin" style="top:80px;right:60px;" onclick="showSheet('XX中介','🏢 XX中介 - 隐形收费\n\n🟡 严重程度：中等\n👥 反馈人数：15人\n📍 距离：800m\n\n📝 典型问题：\n签约后追加服务费、管理费等未提前告知的费用。\n\n💡 避坑建议：\n1. 签约前要求列出全部费用清单\n2. 未明示的费用有权拒绝支付')">🟡</div>
+        <div class="map-pin" style="bottom:40px;left:140px;" onclick="showSheet('XX房东','🏠 XX房东 - 维修推诿\n\n🟢 严重程度：轻微\n👥 反馈人数：8人\n📍 距离：1.2km\n\n📝 典型问题：\n房屋设施损坏后房东迟迟不予维修。\n\n💡 避坑建议：\n1. 合同明确维修责任和时限\n2. 紧急维修可先垫付后抵扣租金')">🟢</div>
+      </div>
+      <!-- 坑位列表 -->
+      <div class="page-content" style="flex:1;">
+        <div style="padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:16px;font-weight:700;color:var(--text);">附近坑位 (3)</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('XX公寓','押金不退 · 严重\n23人反馈 · 500m')">
+            <div class="list-icon-box" style="background:var(--danger-light);">🏠</div>
+            <div class="list-entry-body">
+              <div class="list-entry-title">XX公寓 - 押金不退</div>
+              <div class="list-entry-sub">23人反馈 · 500m</div>
+            </div>
+            <span class="tag tag-danger" style="margin-right:8px;">严重</span>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('XX中介','隐形收费 · 中等\n15人反馈 · 800m')">
+            <div class="list-icon-box" style="background:var(--warning-light);">🏢</div>
+            <div class="list-entry-body">
+              <div class="list-entry-title">XX中介 - 隐形收费</div>
+              <div class="list-entry-sub">15人反馈 · 800m</div>
+            </div>
+            <span class="tag tag-warning" style="margin-right:8px;">中等</span>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('XX房东','维修推诿 · 轻微\n8人反馈 · 1.2km')">
+            <div class="list-icon-box" style="background:var(--safe-light);">🏠</div>
+            <div class="list-entry-body">
+              <div class="list-entry-title">XX房东 - 维修推诿</div>
+              <div class="list-entry-sub">8人反馈 · 1.2km</div>
+            </div>
+            <span class="tag tag-safe" style="margin-right:8px;">轻微</span>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="spacer-16"></div>
+          <button class="btn btn-ghost" style="width:100%;" onclick="showSheet('报坑','📝 上报坑位\n\n请填写以下信息：\n1. 坑位名称/地址\n2. 坑位类型（押金/收费/维修/其他）\n3. 严重程度（严重/中等/轻微）\n4. 详细描述\n5. 上传证据（图片/聊天截图）\n\n✅ 提交后经审核24h内上架地图')">
+            ➕ 我要报一个坑
+          </button>
+        </div>
+      </div>
+      <!-- Tab导航 -->
+      <div class="tab-bar">
+        <div class="tab-item" data-tab="home" onclick="switchTab('page-home',this)">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>首页</span>
+        </div>
+        <div class="tab-item" data-tab="chat" onclick="switchTab('page-chat',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>AI咨询</span>
+        </div>
+        <div class="tab-item active" data-tab="map" onclick="switchTab('page-map',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>坑位地图</span>
+        </div>
+        <div class="tab-item" data-tab="profile" onclick="switchTab('page-profile',this)">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>我的</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== -->
+    <!-- 06 - 个人中心页 -->
+    <!-- ================================================== -->
+    <div class="page" id="page-profile">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 11h2v4H1zm4-4h2v8H5zm4-4h2v12H9zm4-4h2v16h-2z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C5.2 2 2.8 3.3 1.3 5.3l1.2.9C3.8 4.5 5.7 3.5 8 3.5s4.2 1 5.5 2.7l1.2-.9C13.2 3.3 10.8 2 8 2zm0 3.5c-1.8 0-3.4.8-4.5 2l1.2.9c.8-1 2-1.5 3.3-1.5s2.5.5 3.3 1.5l1.2-.9c-1.1-1.2-2.7-2-4.5-2zm0 3.5c-1 0-1.9.5-2.5 1.2L8 13.5l2.5-3.3C9.9 9.5 9 9 8 9z"/></svg>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 5h10v8H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="14" y="5" width="2" height="8" rx="0.5"/></svg>
+        </div>
+      </div>
+      <div class="page-content">
+        <div style="padding:16px;">
+          <!-- 用户信息 -->
+          <div style="text-align:center;padding:24px 0;">
+            <div style="width:64px;height:64px;border-radius:50%;background:var(--accent-light);margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:28px;">🛡️</div>
+            <div style="font-size:20px;font-weight:700;color:var(--text);margin-top:12px;">避坑小达人</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">已避坑 5 次 · 节省 ¥8,400</div>
+          </div>
+          <!-- 成就数据 -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div class="card" style="text-align:center;padding:12px 0;" onclick="navigateTo('page-contract')">
+              <div style="font-size:24px;font-weight:700;color:var(--accent);">5</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">合同审查</div>
+            </div>
+            <div class="card" style="text-align:center;padding:12px 0;" onclick="showSheet('维权记录','维权记录页面开发中...')">
+              <div style="font-size:24px;font-weight:700;color:var(--warning);">3</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">维权记录</div>
+            </div>
+            <div class="card" style="text-align:center;padding:12px 0;" onclick="navigateTo('page-map')">
+              <div style="font-size:24px;font-weight:700;color:var(--safe);">8</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">坑位收藏</div>
+            </div>
+          </div>
+          <div class="spacer-24"></div>
+          <!-- 维权时间线 -->
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;">维权时间线</div>
+          <div class="timeline">
+            <div class="timeline-item" onclick="showSheet('押金纠纷详情','📅 2024.05.20\n\n✅ 调解成功\n\n💰 追回金额：¥6,300\n\n📋 处理过程：\n1. 5月12日：提交投诉\n2. 5月15日：居委会调解\n3. 5月18日：房东同意退还\n4. 5月20日：收到退款\n\n⏱ 耗时：8天')">
+              <div class="timeline-dot" style="background:var(--safe);box-shadow:0 0 0 2px var(--safe-light);"></div>
+              <div style="font-size:14px;color:var(--text);font-weight:500;">押金纠纷 - 调解成功</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">05.20 · 追回 ¥6,300</div>
+            </div>
+            <div class="timeline-item" onclick="showSheet('隐形收费详情','📅 2024.05.24\n\n⏳ 处理中\n\n📋 当前进度：\n1. 5月24日：提交投诉\n2. 5月26日：等待住建局受理\n\n⏱ 已耗时：3天\n\n📞 下一步：等待受理通知')">
+              <div class="timeline-dot" style="background:var(--warning);box-shadow:0 0 0 2px var(--warning-light);"></div>
+              <div style="font-size:14px;color:var(--text);font-weight:500;">隐形收费 - 处理中</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">05.24 · 已提交投诉</div>
+            </div>
+          </div>
+          <div class="spacer-24"></div>
+          <!-- 工具箱 -->
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">工具箱</div>
+          <div class="list-entry" onclick="showSheet('合同模板库','📝 标准合同模板\n\n1. 住宅租赁合同（标准版）\n2. 合租协议模板\n3. 商铺租赁合同\n\n✅ 所有模板已预置避坑条款，可直接使用')">
+            <div class="list-icon-box" style="background:var(--accent-light);">📋</div>
+            <div class="list-entry-body"><div class="list-entry-title">合同模板库</div></div>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('租金行情','💰 北京各区域租金均价\n\n朝阳区：¥6,800/月\n海淀区：¥7,200/月\n丰台区：¥5,400/月\n通州区：¥3,800/月\n\n数据来源：链家/贝壳研究院 2024Q2')">
+            <div class="list-icon-box" style="background:#FEF3C7;">💰</div>
+            <div class="list-entry-body"><div class="list-entry-title">租金行情</div></div>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="showSheet('投诉电话速查','📞 维权电话速查\n\n12345 · 市民热线\n12315 · 消费者投诉\n12336 · 国土资源热线\n010-12329 · 住房公积金\n当地住建委 · 房屋租赁管理\n\n💡 提示：拨打时说明"租房纠纷"可快速转接')">
+            <div class="list-icon-box" style="background:var(--danger-light);">📞</div>
+            <div class="list-entry-body"><div class="list-entry-title">投诉电话速查</div></div>
+            <span class="list-arrow">›</span>
+          </div>
+          <div class="list-entry" onclick="confirmLogout()">
+            <div class="list-icon-box" style="background:var(--placeholder);">🚪</div>
+            <div class="list-entry-body"><div class="list-entry-title">退出登录</div></div>
+            <span class="list-arrow">›</span>
+          </div>
+        </div>
+      </div>
+      <!-- Tab导航 -->
+      <div class="tab-bar">
+        <div class="tab-item" data-tab="home" onclick="switchTab('page-home',this)">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>首页</span>
+        </div>
+        <div class="tab-item" data-tab="chat" onclick="switchTab('page-chat',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>AI咨询</span>
+        </div>
+        <div class="tab-item" data-tab="map" onclick="switchTab('page-map',this)">
+          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>坑位地图</span>
+        </div>
+        <div class="tab-item active" data-tab="profile" onclick="switchTab('page-profile',this)">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>我的</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /phone-screen -->
+</div><!-- /phone-shell -->
+
+<!-- 底部说明 -->
+<div class="proto-footer">
+  避坑侠交互原型V2.0
+</div>
+
+<script>
+// ========== 页面导航 ==========
+const pageHistory = ['page-login'];
+let currentPage = 'page-login';
+
+function navigateTo(pageId) {
+  if (currentPage === pageId) return;
+  const oldPage = document.getElementById(currentPage);
+  const newPage = document.getElementById(pageId);
+  if (!oldPage || !newPage) return;
+
+  // 进入合同页时重置上传状态
+  if (pageId === 'page-contract') resetContractPage();
+  // 进入聊天页时自动滚到底部（输入栏可见 + 看最新消息）
+  if (pageId === 'page-chat') scrollChatToBottom();
+
+  // 退出旧页面：滑到左侧
+  oldPage.classList.remove('active');
+  oldPage.classList.add('exit-left');
+
+  // 进入新页面
+  newPage.classList.add('active');
+
+  // 动画结束后清掉 exit-left（保持位置在右侧待命，避免瞬移）
+  setTimeout(() => {
+    oldPage.classList.remove('exit-left');
+    // 动画结束后再滚一次，确保布局稳定后定位准确
+    if (pageId === 'page-chat') scrollChatToBottom();
+  }, 380);
+
+  pageHistory.push(pageId);
+  currentPage = pageId;
+
+  // 更新 Tab 状态
+  updateTabState(pageId);
+}
+
+// ===== replaceTo：用动画切换到新页面，但清空历史栈（用于登录后跳首页）=====
+function replaceTo(pageId) {
+  if (currentPage === pageId) {
+    // 已经在目标页，仅重置历史栈
+    pageHistory.length = 0;
+    pageHistory.push(pageId);
+    return;
+  }
+  navigateTo(pageId);
+  // 清空到只剩新页面
+  pageHistory.length = 0;
+  pageHistory.push(pageId);
+}
+
+function goBack() {
+  let targetPage;
+
+  if (pageHistory.length > 1) {
+    pageHistory.pop();
+    targetPage = pageHistory[pageHistory.length - 1];
+  } else {
+    // 历史不足时，默认返回首页
+    targetPage = 'page-home';
+    pageHistory.length = 0;
+    pageHistory.push(targetPage);
+  }
+
+  if (targetPage === currentPage) return;
+
+  const fromPage = document.getElementById(currentPage);
+  const toPage = document.getElementById(targetPage);
+  if (!fromPage || !toPage) return;
+
+  // 当前页滑出到右侧
+  fromPage.classList.remove('active');
+
+  // 目标页从左侧滑入：先无动画定位到左侧，再动画滑入
+  toPage.style.transition = 'none';
+  toPage.style.transform = 'translateX(-30%)';
+  toPage.style.opacity = '0.5';
+  toPage.style.pointerEvents = 'auto';
+  toPage.style.zIndex = '10';
+  void toPage.offsetHeight; // 强制重排
+
+  toPage.style.transition = '';
+  toPage.style.transform = '';
+  toPage.style.opacity = '';
+  toPage.style.pointerEvents = '';
+  toPage.style.zIndex = '';
+  toPage.classList.add('active');
+
+  currentPage = targetPage;
+  updateTabState(targetPage);
+}
+
+// Tab 顺序（与底栏从左到右一致）
+const TAB_ORDER = ['page-home', 'page-chat', 'page-map', 'page-profile'];
+
+function switchTab(pageId, tabEl) {
+  // Tab 平级切换：根据 Tab 在底栏的左右位置决定滑动方向
+  if (currentPage === pageId) return;
+  const oldPage = document.getElementById(currentPage);
+  const newPage = document.getElementById(pageId);
+  if (!oldPage || !newPage) return;
+
+  // 防止动画期间重复点击
+  if (oldPage.dataset.animating === '1' || newPage.dataset.animating === '1') return;
+  oldPage.dataset.animating = '1';
+  newPage.dataset.animating = '1';
+
+  // 进入聊天页时自动滚到底部
+  if (pageId === 'page-chat') scrollChatToBottom();
+
+  // 判断方向：新 Tab 在旧 Tab 的左边还是右边
+  const oldIdx = TAB_ORDER.indexOf(currentPage);
+  const newIdx = TAB_ORDER.indexOf(pageId);
+  // 如果当前页不在 Tab 列表中（比如从二级页面通过底栏切走），按右侧默认处理
+  const goingRight = (oldIdx === -1) ? true : (newIdx > oldIdx);
+
+  // 清除可能残留的动画类
+  const cleanupClasses = ['active', 'exit-left',
+    'tab-leaving-prep', 'tab-leaving-left', 'tab-leaving-right',
+    'tab-entering-left', 'tab-entering-right', 'tab-entered'];
+  cleanupClasses.forEach(c => { oldPage.classList.remove(c); newPage.classList.remove(c); });
+
+  // === 旧页面：先 prep 卡在屏幕原位（避免从 translateX(100%) 反弹），再触发滑出 ===
+  oldPage.classList.add('tab-leaving-prep');
+  void oldPage.offsetHeight; // 强制重排
+
+  // === 新页面：放置在初始位（屏幕外左/右） ===
+  if (goingRight) {
+    newPage.classList.add('tab-entering-right');
+  } else {
+    newPage.classList.add('tab-entering-left');
+  }
+  void newPage.offsetHeight; // 强制重排，确保起始位生效
+
+  // 下一帧：旧页面开始滑走 + 新页面归位
+  requestAnimationFrame(() => {
+    oldPage.classList.remove('tab-leaving-prep');
+    if (goingRight) {
+      oldPage.classList.add('tab-leaving-left');     // 旧页向左滑走
+      newPage.classList.remove('tab-entering-right');
+    } else {
+      oldPage.classList.add('tab-leaving-right');    // 旧页向右滑走
+      newPage.classList.remove('tab-entering-left');
+    }
+    newPage.classList.add('tab-entered');
+  });
+
+  // 动画结束清理
+  setTimeout(() => {
+    cleanupClasses.forEach(c => { oldPage.classList.remove(c); });
+    newPage.classList.remove('tab-entered', 'tab-entering-left', 'tab-entering-right');
+    newPage.classList.add('active');
+    delete oldPage.dataset.animating;
+    delete newPage.dataset.animating;
+    // 动画结束后再滚一次，确保聊天页定位到最新消息
+    if (pageId === 'page-chat') scrollChatToBottom();
+  }, 360);
+
+  // 重置历史：首页为根，当前 tab 页在其上
+  pageHistory.length = 0;
+  pageHistory.push('page-home');
+  if (pageId !== 'page-home') {
+    pageHistory.push(pageId);
+  }
+  currentPage = pageId;
+
+  // 更新Tab高亮
+  updateTabState(pageId);
+}
+
+function updateTabState(pageId) {
+  // 找到当前页面所属的tab-bar并更新active状态
+  const page = document.getElementById(pageId);
+  if (!page) return;
+  const tabBar = page.querySelector('.tab-bar');
+  if (!tabBar) return;
+
+  // 映射 pageId -> tab名
+  const tabMap = {
+    'page-home': 'home',
+    'page-chat': 'chat',
+    'page-map': 'map',
+    'page-profile': 'profile'
+  };
+  const activeTab = tabMap[pageId];
+
+  // 清除所有tab的active
+  tabBar.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  // 设置当前tab的active
+  tabBar.querySelectorAll('.tab-item').forEach(t => {
+    if (t.dataset.tab === activeTab) t.classList.add('active');
+  });
+}
+
+// ========== 登录逻辑 ==========
+function onPhoneInput() {
+  const phone = document.getElementById('phoneValue').value;
+  const phoneInput = document.getElementById('phoneInput');
+  const phoneError = document.getElementById('phoneError');
+  if (phone.length === 11 && /^1\d{10}$/.test(phone)) {
+    phoneInput.classList.remove('error');
+    phoneError.style.display = 'none';
+  }
+}
+
+function sendCode() {
+  const phone = document.getElementById('phoneValue').value;
+  const phoneInput = document.getElementById('phoneInput');
+  const phoneError = document.getElementById('phoneError');
+  const codeBtn = document.getElementById('codeBtn');
+
+  if (!/^1\d{10}$/.test(phone)) {
+    phoneInput.classList.add('error');
+    phoneError.style.display = 'block';
+    return;
+  }
+
+  // 倒计时
+  let countdown = 60;
+  codeBtn.disabled = true;
+  codeBtn.textContent = countdown + 's';
+  codeBtn.style.opacity = '0.5';
+  codeBtn.style.cursor = 'not-allowed';
+
+  const timer = setInterval(() => {
+    countdown--;
+    codeBtn.textContent = countdown + 's';
+    if (countdown <= 0) {
+      clearInterval(timer);
+      codeBtn.disabled = false;
+      codeBtn.textContent = '获取验证码';
+      codeBtn.style.opacity = '1';
+      codeBtn.style.cursor = 'pointer';
+    }
+  }, 1000);
+
+  showToast('验证码已发送');
+}
+
+function doLogin() {
+  const phone = document.getElementById('phoneValue').value;
+  const code = document.getElementById('codeValue').value;
+  const phoneInput = document.getElementById('phoneInput');
+  const codeInput = document.getElementById('codeInput');
+  const phoneError = document.getElementById('phoneError');
+
+  if (!/^1\d{10}$/.test(phone)) {
+    phoneInput.classList.add('error');
+    phoneError.style.display = 'block';
+    return;
+  }
+
+  if (code.length !== 6) {
+    codeInput.classList.add('error');
+    showToast('请输入6位验证码');
+    setTimeout(() => codeInput.classList.remove('error'), 2000);
+    return;
+  }
+
+  // 登录成功
+  showToast('登录成功 ✓');
+  setTimeout(() => replaceTo('page-home'), 500);
+}
+
+// ========== 合同审查逻辑 ==========
+function resetContractPage() {
+  const uploadArea = document.getElementById('uploadArea');
+  const loadingState = document.getElementById('loadingState');
+  const resultArea = document.getElementById('resultArea');
+  if (uploadArea) uploadArea.style.display = 'block';
+  if (loadingState) loadingState.style.display = 'none';
+  if (resultArea) resultArea.style.display = 'none';
+}
+
+function startAnalysis() {
+  const uploadArea = document.getElementById('uploadArea');
+  const loadingState = document.getElementById('loadingState');
+  const resultArea = document.getElementById('resultArea');
+
+  uploadArea.style.display = 'none';
+  loadingState.style.display = 'block';
+  resultArea.style.display = 'none';
+
+  // 模拟2秒加载
+  setTimeout(() => {
+    loadingState.style.display = 'none';
+    resultArea.style.display = 'block';
+  }, 2000);
+}
+
+// ========== AI对话逻辑 ==========
+const aiResponses = [
+  '根据《民法典》相关规定，这种情况属于典型的霸王条款，你可以主张该条款无效。建议保留所有书面证据，必要时可拨打12345投诉。',
+  '这个问题很常见！根据法律规定，房东有义务保证房屋的基本居住条件。如果房东不维修，你可以自行维修后从租金中扣除维修费用。',
+  '根据《住房租赁条例》，未经租客同意，房东不得擅自进入出租房屋。如果发生这种情况，可以报警处理。',
+  '租金涨价需要提前30天书面通知，且涨幅不能超过合同约定或当地指导价。如遇恶意涨租，可向住建局投诉。'
+];
+
+// ========== 聊天滚动到底部 ==========
+function scrollChatToBottom() {
+  const chatArea = document.getElementById('chatArea');
+  if (!chatArea) return;
+  const scroller = chatArea.parentElement; // .page-content
+  if (scroller) scroller.scrollTop = scroller.scrollHeight;
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const chatArea = document.getElementById('chatArea');
+  const text = input.value.trim();
+  if (!text) return;
+
+  // 添加用户消息
+  const userMsg = document.createElement('div');
+  userMsg.className = 'msg msg-user';
+  userMsg.innerHTML = `<div class="msg-avatar msg-avatar-user">我</div><div class="msg-bubble">${escapeHtml(text)}</div>`;
+  chatArea.appendChild(userMsg);
+  input.value = '';
+
+  // 添加AI正在输入
+  const typingMsg = document.createElement('div');
+  typingMsg.className = 'msg msg-ai';
+  typingMsg.id = 'typing-msg';
+  typingMsg.innerHTML = `<div class="msg-avatar msg-avatar-ai">🤖</div><div class="msg-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  chatArea.appendChild(typingMsg);
+
+  // 滚动到底部
+  scrollChatToBottom();
+
+  // 1.5秒后替换为真实回复
+  setTimeout(() => {
+    const response = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+    const realMsg = document.getElementById('typing-msg');
+    if (realMsg) {
+      realMsg.innerHTML = `<div class="msg-avatar msg-avatar-ai">🤖</div><div class="msg-bubble">${response}</div>`;
+      realMsg.removeAttribute('id');
+    }
+    scrollChatToBottom();
+  }, 1500);
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ========== Toast ==========
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ========== 半屏弹窗 ==========
+function showSheet(title, content) {
+  const overlay = document.getElementById('overlay');
+  const sheet = document.getElementById('halfSheet');
+  const sheetTitle = document.getElementById('sheetTitle');
+  const sheetBody = document.getElementById('sheetBody');
+
+  sheetTitle.textContent = title;
+  sheetBody.innerHTML = content.replace(/\n/g, '<br>');
+  overlay.classList.add('visible');
+  sheet.classList.add('visible');
+}
+
+function closeSheet() {
+  const overlay = document.getElementById('overlay');
+  const sheet = document.getElementById('halfSheet');
+  overlay.classList.remove('visible');
+  sheet.classList.remove('visible');
+}
+
+// 点击遮罩：智能关闭当前打开的浮层
+function dismissOverlay() {
+  const sheet = document.getElementById('halfSheet');
+  const dialog = document.getElementById('confirmDialog');
+  if (sheet.classList.contains('visible')) {
+    closeSheet();
+  } else if (dialog.classList.contains('visible')) {
+    hideConfirm(false);
+  }
+}
+
+// ========== 自定义确认对话框 ==========
+let _confirmCallback = null;
+function showConfirm(opts) {
+  // opts: { title, message, okText, danger, onConfirm }
+  const dialog = document.getElementById('confirmDialog');
+  const overlay = document.getElementById('overlay');
+  const titleEl = document.getElementById('confirmTitle');
+  const msgEl = document.getElementById('confirmMessage');
+  const okBtn = document.getElementById('confirmOkBtn');
+
+  titleEl.textContent = opts.title || '提示';
+  msgEl.textContent = opts.message || '';
+  okBtn.textContent = opts.okText || '确定';
+  okBtn.classList.toggle('danger', !!opts.danger);
+
+  _confirmCallback = opts.onConfirm || null;
+
+  overlay.classList.add('visible');
+  dialog.classList.add('visible');
+}
+function hideConfirm(ok) {
+  const dialog = document.getElementById('confirmDialog');
+  const overlay = document.getElementById('overlay');
+  dialog.classList.remove('visible');
+  overlay.classList.remove('visible');
+  const cb = _confirmCallback;
+  _confirmCallback = null;
+  if (ok && cb) setTimeout(cb, 220); // 等动画结束
+}
+
+// ========== 退出登录确认 ==========
+function confirmLogout() {
+  showConfirm({
+    title: '退出登录',
+    message: '退出后将返回登录页，是否继续？',
+    okText: '退出',
+    danger: true,
+    onConfirm: () => {
+      showToast('已退出登录');
+      // 用 replaceTo 切回登录页并清空历史
+      replaceTo('page-login');
+    }
+  });
+}
+
+// ========== 按钮涟漪效果 ==========
+document.querySelectorAll('.btn').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    if (this.classList.contains('disabled')) return;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const rect = this.getBoundingClientRect();
+    ripple.style.left = (e.clientX - rect.left) + 'px';
+    ripple.style.top = (e.clientY - rect.top) + 'px';
+    this.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  });
+});
+</script>
+</body>
+</html>
